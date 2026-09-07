@@ -1,0 +1,6 @@
+server:
+  port: 8104
+
+logging:
+  level:
+    io.pqa.sandbox.crypto: INFO

@@ -1,0 +1,48 @@
+# Draft (M1): runs locally built jars on a JRE image.
+# Requires a host build first:  mvn -B -DskipTests package
+services:
+  stripe-emulator:
+    image: eclipse-temurin:17-jre
+    ports:
+      - "8101:8101"
+    volumes:
+      - ../emulators/stripe-emulator/target/stripe-emulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]
+
+  paypal-emulator:
+    image: eclipse-temurin:17-jre
+    ports:
+      - "8102:8102"
+    volumes:
+      - ../emulators/paypal-emulator/target/paypal-emulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]
+
+  card-acquirer-emulator:
+    image: eclipse-temurin:17-jre
+    ports:
+      - "8103:8103"
+    volumes:
+      - ../emulators/card-acquirer-emulator/target/card-acquirer-emulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]
+
+  crypto-emulator:
+    image: eclipse-temurin:17-jre
+    ports:
+      - "8104:8104"
+    volumes:
+      - ../emulators/crypto-emulator/target/crypto-emulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]
+
+  demo-merchant:
+    image: eclipse-temurin:17-jre
+    depends_on:
+      - stripe-emulator
+      - paypal-emulator
+    ports:
+      - "8200:8200"
+    environment:
+      SANDBOX_STRIPE_BASE_URL: http://stripe-emulator:8101
+      SANDBOX_PAYPAL_BASE_URL: http://paypal-emulator:8102
+    volumes:
+      - ../demo-merchant/target/demo-merchant-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]

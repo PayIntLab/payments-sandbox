@@ -1,0 +1,6 @@
+server:
+  port: 8101
+
+logging:
+  level:
+    io.pqa.sandbox.stripe: INFO

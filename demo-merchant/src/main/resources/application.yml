@@ -1,0 +1,12 @@
+server:
+  port: 8200
+
+sandbox:
+  stripe-base-url: http://localhost:8101
+  paypal-base-url: http://localhost:8102
+  stripe-webhook-secret: whsec_pqa_stripe_test
+  paypal-webhook-secret: whsec_pqa_paypal_test
+
+logging:
+  level:
+    io.pqa.sandbox.merchant: INFO

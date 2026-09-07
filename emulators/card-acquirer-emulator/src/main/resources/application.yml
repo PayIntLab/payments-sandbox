@@ -1,0 +1,6 @@
+server:
+  port: 8103
+
+logging:
+  level:
+    io.pqa.sandbox.card: INFO
