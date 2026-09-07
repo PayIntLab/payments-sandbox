@@ -12,8 +12,8 @@ Do not use this project with real payment data.
 | --- | --- | --- |
 | `stripe-emulator` | 8101 | Stripe-style PaymentIntents and signed webhooks (`Stripe-Signature`) |
 | `paypal-emulator` | 8102 | PayPal Orders v2 create/capture and transmission-signed webhooks |
-| `card-acquirer-emulator` | 8103 | Test-card rules: approve and `insufficient_funds` decline (skeleton) |
-| `crypto-emulator` | 8104 | Deposit address generation for USDT, ETH and BTC chains (skeleton) |
+| `card-acquirer-emulator` | 8103 | Card authorize, capture, refund, void, 3DS challenge, test-card rules |
+| `crypto-emulator` | 8104 | Deposit address, simulated deposits, confirmations, deposit callback |
 | `demo-merchant` | 8200 | Reference merchant: adapters, signature verification, idempotent webhooks |
 
 ## Build and run
@@ -25,7 +25,7 @@ mvn -B test        # build and run unit tests
 ./scripts/demo.sh  # local end-to-end demo
 ```
 
-`demo.sh` builds the project, starts the Stripe emulator, the PayPal emulator and the demo merchant, registers webhook endpoints, runs one Stripe payment and one PayPal payment to a terminal state, prints each order, then stops the services.
+`demo.sh` builds the project, starts all emulators and the demo merchant, registers webhook endpoints, runs one payment flow per provider until the order is `PAID`, prints each order, then stops the services.
 
 ## Payment flows
 
@@ -43,11 +43,38 @@ mvn -B test        # build and run unit tests
 3. The emulator delivers `PAYMENT.CAPTURE.COMPLETED` with PayPal transmission headers (`paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmission-sig`, `paypal-webhook-id`).
 4. The merchant verifies the transmission signature and marks the order `PAID`.
 
+### Card
+
+1. The merchant creates an order with `provider=card`. Card details are sent to `POST /v1/charges` as an authorization request.
+2. Test cards produce one of three results: authorized, declined with a reason, or `REQUIRES_ACTION` for the 3DS card.
+3. For a 3DS charge the merchant calls `POST /orders/{id}/challenge`, then `POST /orders/{id}/approve` to capture the authorized charge.
+4. The emulator delivers `payment.captured` with an `X-Pqa-Signature` header. The merchant verifies it and marks the order `PAID`.
+
+Test cards (number, result):
+
+| Card number | Result |
+| --- | --- |
+| `4242424242424242` | authorized |
+| `4000000000000002` | declined, `insufficient_funds` |
+| `4000000000009995` | declined, `expired_card` |
+| `4000000000000069` | declined, `processing_error` |
+| `4000000000000027` | 3DS challenge required |
+
+`cvc` value `000` declines with `incorrect_cvc`. Past expiry dates decline with `expired_card`.
+
+### Crypto
+
+1. The merchant creates an order with `provider=crypto` and receives a deposit address.
+2. A deposit is simulated at `POST /v1/deposits` on the crypto emulator.
+3. `POST /v1/deposits/{id}/confirmations` advances confirmations. At 3 confirmations the deposit moves to `CONFIRMED` and the emulator delivers `deposit.confirmed` once, with `X-Pqa-Signature` and the transaction hash.
+4. The merchant verifies the signature and marks the order `PAID`.
+
 ## Emulator notes
 
 - Request and response bodies are JSON in all emulators. The real Stripe API accepts form-encoded requests, so the body format is a deliberate simplification; endpoint paths, field names and headers follow provider conventions.
-- Default webhook secrets are fixed for local use: `whsec_pqa_stripe_test` and `whsec_pqa_paypal_test`. Override them through environment variables when needed.
+- Default webhook secrets are fixed for local use: `whsec_pqa_stripe_test`, `whsec_pqa_paypal_test`, `whsec_pqa_card_test` and `whsec_pqa_crypto_test`. Override them through environment variables when needed.
 - The Stripe emulator supports failure injection through `POST /v1/scenarios` with `drop`, `duplicate`, `bad_signature` or `delay_ms` for a given payment intent and event type.
+- Crypto confirmations are driven manually through the confirmations endpoint. A deposit can cross the threshold only once.
 
 ## Adding another provider
 
@@ -63,7 +90,6 @@ Existing emulators do not depend on each other, so one provider can be added or 
 
 ## Roadmap
 
-- M2: card acquirer lifecycle (authorize, capture, refund, void, 3DS challenge) and crypto confirmations (1/3/6 blocks, transaction hash, deposit callback)
 - M3: reconciliation drill. The emulator drops a webhook silently and the merchant scheduled reconciliation finds and recovers the order
 - M4: containerized deployment with Dockerfiles, a parity matrix against real sandbox behavior, and a CI smoke test for the full demo
 

@@ -58,6 +58,51 @@ public class ProviderClients {
                 .toBodilessEntity();
     }
 
+    public Map<?, ?> createCardCharge(Order order, String cardNumber) {
+        RestClient client = RestClient.builder().baseUrl(props.getCardBaseUrl()).build();
+        return client.post().uri("/v1/charges")
+                .header("Content-Type", "application/json")
+                .body(Map.of(
+                        "merchant_order_id", order.merchantOrderId,
+                        "amount_cents", order.amountCents,
+                        "currency", order.currency,
+                        "card", Map.of(
+                                "number", cardNumber,
+                                "exp_month", "12",
+                                "exp_year", "2030",
+                                "cvc", "123")))
+                .retrieve()
+                .body(Map.class);
+    }
+
+    public Map<?, ?> challengeCardCharge(Order order, String result) {
+        RestClient client = RestClient.builder().baseUrl(props.getCardBaseUrl()).build();
+        return client.post().uri("/v1/charges/{id}/challenge", order.externalId)
+                .header("Content-Type", "application/json")
+                .body(Map.of("result", result))
+                .retrieve()
+                .body(Map.class);
+    }
+
+    public void captureCardCharge(Order order) {
+        RestClient client = RestClient.builder().baseUrl(props.getCardBaseUrl()).build();
+        client.post().uri("/v1/charges/{id}/capture", order.externalId)
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    public String createCryptoAddress(Order order) {
+        RestClient client = RestClient.builder().baseUrl(props.getCryptoBaseUrl()).build();
+        Map<?, ?> resp = client.post().uri("/v1/deposit/address")
+                .header("Content-Type", "application/json")
+                .body(Map.of(
+                        "currency", order.currency,
+                        "merchant_order_id", order.merchantOrderId))
+                .retrieve()
+                .body(Map.class);
+        return String.valueOf(resp.get("address"));
+    }
+
     private static String centsToDecimal(long cents) {
         return String.format(Locale.ROOT, "%d.%02d", cents / 100, cents % 100);
     }

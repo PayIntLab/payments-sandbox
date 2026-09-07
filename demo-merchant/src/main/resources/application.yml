@@ -6,6 +6,10 @@ sandbox:
   paypal-base-url: http://localhost:8102
   stripe-webhook-secret: whsec_pqa_stripe_test
   paypal-webhook-secret: whsec_pqa_paypal_test
+  card-base-url: http://localhost:8103
+  crypto-base-url: http://localhost:8104
+  card-webhook-secret: whsec_pqa_card_test
+  crypto-webhook-secret: whsec_pqa_crypto_test
 
 logging:
   level:

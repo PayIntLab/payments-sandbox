@@ -24,7 +24,9 @@ public class OrderController {
         long amount = Long.parseLong(String.valueOf(body.get("amount")));
         String currency = String.valueOf(body.getOrDefault("currency", "usd"));
         String provider = String.valueOf(body.get("provider"));
-        Order order = service.create(provider, amount, currency);
+        String cardNumber = body.get("card_number") == null
+                ? null : String.valueOf(body.get("card_number"));
+        Order order = service.create(provider, amount, currency, cardNumber);
         return ResponseEntity.status(HttpStatus.CREATED).body(order);
     }
 
@@ -33,13 +35,20 @@ public class OrderController {
         return service.get(id);
     }
 
-    @GetMapping("/health")
-    public Map<String, String> health() {
-        return Map.of("status", "ok");
-    }
-
     @PostMapping("/orders/{id}/approve")
     public Order approve(@PathVariable("id") String id) {
         return service.approve(id);
+    }
+
+    @PostMapping("/orders/{id}/challenge")
+    public Order challenge(@PathVariable("id") String id, @RequestBody Map<String, Object> body) {
+        String result = body.get("result") == null
+                ? "successful" : String.valueOf(body.get("result"));
+        return service.challenge(id, result);
+    }
+
+    @GetMapping("/health")
+    public Map<String, String> health() {
+        return Map.of("status", "ok");
     }
 }

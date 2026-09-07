@@ -91,6 +91,66 @@ public class WebhookController {
         return ResponseEntity.ok("ok");
     }
 
+    @PostMapping("/webhooks/card")
+    public ResponseEntity<String> card(HttpServletRequest request) throws IOException {
+        String rawBody = readBody(request);
+        if (!WebhookSignatures.verifyStripe(
+                request.getHeader("X-Pqa-Signature"), rawBody, props.getCardWebhookSecret())) {
+            log.warn("[card-webhook] signature verification failed");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("invalid signature");
+        }
+        JsonNode event = mapper.readTree(rawBody);
+        String eventId = event.path("id").asText();
+        String type = event.path("type").asText();
+        JsonNode object = event.path("data").path("object");
+        String merchantOrderId = object.path("merchant_order_id").asText();
+        String externalId = object.path("id").asText();
+
+        Order order = orderService.findByMerchantOrderId(merchantOrderId);
+        if (order == null) {
+            log.warn("[card-webhook] order not found for {}", merchantOrderId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("order not found");
+        }
+        if (order.alreadyProcessed(eventId)) {
+            return ResponseEntity.ok("duplicate ignored");
+        }
+        if ("payment.captured".equals(type)) {
+            order.markPaid(externalId, "CAPTURED", eventId);
+            log.info("[card-webhook] order {} marked PAID via event {}", order.id, eventId);
+        }
+        return ResponseEntity.ok("ok");
+    }
+
+    @PostMapping("/webhooks/crypto")
+    public ResponseEntity<String> crypto(HttpServletRequest request) throws IOException {
+        String rawBody = readBody(request);
+        if (!WebhookSignatures.verifyStripe(
+                request.getHeader("X-Pqa-Signature"), rawBody, props.getCryptoWebhookSecret())) {
+            log.warn("[crypto-webhook] signature verification failed");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("invalid signature");
+        }
+        JsonNode event = mapper.readTree(rawBody);
+        String eventId = event.path("id").asText();
+        String type = event.path("type").asText();
+        JsonNode deposit = event.path("data").path("deposit");
+        String merchantOrderId = deposit.path("merchant_order_id").asText();
+        String txHash = deposit.path("tx_hash").asText();
+
+        Order order = orderService.findByMerchantOrderId(merchantOrderId);
+        if (order == null) {
+            log.warn("[crypto-webhook] order not found for {}", merchantOrderId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("order not found");
+        }
+        if (order.alreadyProcessed(eventId)) {
+            return ResponseEntity.ok("duplicate ignored");
+        }
+        if ("deposit.confirmed".equals(type)) {
+            order.markPaid(txHash, "CONFIRMED", eventId);
+            log.info("[crypto-webhook] order {} marked PAID via event {}", order.id, eventId);
+        }
+        return ResponseEntity.ok("ok");
+    }
+
     private static String readBody(HttpServletRequest request) throws IOException {
         return new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
     }
