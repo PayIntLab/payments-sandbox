@@ -13,6 +13,8 @@ public class Order {
     public String status = "PENDING";
     public String externalId;
     public String providerStatus;
+    public String paidSource;
+    public Instant recoveredAt;
     public Instant createdAt = Instant.now();
     public Instant updatedAt = createdAt;
     public final Set<String> processedEventIds = ConcurrentHashMap.newKeySet();
@@ -33,10 +35,19 @@ public class Order {
         this.externalId = externalId;
         this.providerStatus = providerStatus;
         this.status = "PAID";
+        this.paidSource = "webhook";
         this.updatedAt = Instant.now();
         if (eventId != null) {
             this.processedEventIds.add(eventId);
         }
+    }
+
+    public void markPaidByReconciliation(String providerStatus, Instant at) {
+        this.providerStatus = providerStatus;
+        this.status = "PAID";
+        this.paidSource = "reconciliation";
+        this.recoveredAt = at;
+        this.updatedAt = at;
     }
 
     public boolean alreadyProcessed(String eventId) {

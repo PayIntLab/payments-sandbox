@@ -1,0 +1,84 @@
+
+==============================================================
+  M3 reconciliation drill: a silently dropped webhook
+==============================================================
+provider : stripe-emulator (http://localhost:8101)
+merchant : demo-merchant (http://localhost:8200)
+window   : reconciliation runs every 5 minutes (sandbox clock)
+
+==============================================================
+  [1/6] Build and start the sandbox
+==============================================================
+building project and starting emulator + merchant...
+--- backend logs ---
+[backend] 2026-09-11T17:42:22.630+08:00 Started DemoMerchantApplication in 1.16 seconds (process running for 1.389)
+[backend] 2026-09-11T17:42:22.707+08:00 Started StripeEmulatorApplication in 1.238 seconds (process running for 1.466)
+
+==============================================================
+  [2/6] Customer starts a payment
+==============================================================
+merchant order : order_102
+payment intent : pi_1001
+local status   : PENDING
+--- backend logs ---
+[backend] 2026-09-11T17:42:24.681+08:00 [stripe] payment_intent pi_1001 created (requires_confirmation)
+[backend] 2026-09-11T17:42:24.694+08:00 [merchant] created order order_102 (provider=stripe, amount=29900 usd, external=pi_1001, confirm=false)
+
+==============================================================
+  [3/6] Provider confirms; webhook delivery is dropped
+==============================================================
+injecting failure: drop payment_intent.succeeded for pi_1001
+provider says  : succeeded
+merchant says  : PENDING
+--- backend logs ---
+[backend] 2026-09-11T17:42:25.868+08:00 [stripe] payment_intent pi_1001 confirmed -> succeeded
+[backend] 2026-09-11T17:42:25.868+08:00 [stripe-webhook] DROP scenario active for event evt_2
+[backend] 2026-09-11T17:42:25.870+08:00 [merchant] order order_102 confirm requested; provider status=succeeded, waiting for webhook
+
+==============================================================
+  [4/6] Order is stuck: money moved, business state did not
+==============================================================
+merchant order : PENDING
+provider intent: succeeded
+local source   : None
+[backend] check: merchant log has 0 webhook deliveries for this order; provider intent is succeeded, local order is still PENDING
+
+==============================================================
+  [5/6] Five minutes later: sandbox clock advances
+==============================================================
+sandbox clock advanced by 300 seconds -> 2026-09-11T09:47:27.080816Z
+--- backend logs ---
+[backend] 2026-09-11T17:42:27.080+08:00 [clock] sandbox clock advanced by 300s (offset=300s, now=2026-09-11T09:47:27.080641Z)
+
+==============================================================
+  [6/6] Reconciliation finds the payment and recovers the order
+==============================================================
+waiting for the scheduled reconciliation tick...
+{
+    "simulated_offset_seconds": 300,
+    "interval_seconds": 300,
+    "scans": 1,
+    "next_run_at": "2026-09-11T09:52:27.651863Z",
+    "last_run_at": "2026-09-11T09:47:27.651863Z",
+    "total_recovered": 1
+}
+--- backend logs ---
+[backend] 2026-09-11T17:42:27.658+08:00 [reconciliation] recovered order order_102 (stripe): provider=succeeded, local=PENDING -> PAID, webhook was missing
+[backend] 2026-09-11T17:42:27.658+08:00 [reconciliation] t=2026-09-11T09:47:27.651863Z scan #1 (scheduled): 1 pending checked, 1 recovered
+
+order id      : order_102
+status        : PAID
+paid source   : reconciliation
+provider said : succeeded
+recovered at  : 2026-09-11T09:47:27.651863Z
+
+summary
+  webhook deliveries      : 0 (dropped)
+  reconciliation scans    : 1
+  orders recovered        : 1
+  time to recovery        : 5m00s of sandbox time
+
+The provider was always the source of truth. The merchant only needed a
+scheduled pull to find the payment the webhook never delivered.
+
+[cleanup] stopping services...

@@ -26,7 +26,9 @@ public class OrderController {
         String provider = String.valueOf(body.get("provider"));
         String cardNumber = body.get("card_number") == null
                 ? null : String.valueOf(body.get("card_number"));
-        Order order = service.create(provider, amount, currency, cardNumber);
+        boolean confirm = body.get("confirm") == null
+                || Boolean.parseBoolean(String.valueOf(body.get("confirm")));
+        Order order = service.create(provider, amount, currency, cardNumber, confirm);
         return ResponseEntity.status(HttpStatus.CREATED).body(order);
     }
 
@@ -38,6 +40,11 @@ public class OrderController {
     @PostMapping("/orders/{id}/approve")
     public Order approve(@PathVariable("id") String id) {
         return service.approve(id);
+    }
+
+    @PostMapping("/orders/{id}/confirm-payment")
+    public Order confirmPayment(@PathVariable("id") String id) {
+        return service.confirmPayment(id);
     }
 
     @PostMapping("/orders/{id}/challenge")

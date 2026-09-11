@@ -3,6 +3,8 @@ package io.pqa.sandbox.stripe;
 import io.pqa.sandbox.stripe.model.PaymentIntent;
 import io.pqa.sandbox.stripe.model.ScenarioRule;
 import io.pqa.sandbox.stripe.model.WebhookEndpoint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +21,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/v1")
 public class StripeApiController {
+    private static final Logger log = LoggerFactory.getLogger(StripeApiController.class);
     private static final String DEFAULT_SECRET = "whsec_pqa_stripe_test";
     private final StripeStore store;
     private final WebhookSender sender;
@@ -49,6 +52,7 @@ public class StripeApiController {
         PaymentIntent pi = new PaymentIntent(store.nextIntentId(), amount, currency,
                 decline ? "requires_payment_method" : "requires_confirmation", merchantOrderId);
         store.intents.put(pi.id, pi);
+        log.info("[stripe] payment_intent {} created ({})", pi.id, pi.status);
         if (confirm) {
             if (decline) {
                 pi.status = "requires_payment_method";
@@ -57,6 +61,7 @@ public class StripeApiController {
                 pi.status = "succeeded";
                 sender.dispatch("payment_intent.succeeded", pi);
             }
+            log.info("[stripe] payment_intent {} confirmed -> {}", pi.id, pi.status);
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(pi);
     }
@@ -81,6 +86,7 @@ public class StripeApiController {
                     "Payment intent is already " + pi.status);
         }
         pi.status = "succeeded";
+        log.info("[stripe] payment_intent {} confirmed -> {}", pi.id, pi.status);
         sender.dispatch("payment_intent.succeeded", pi);
         return pi;
     }

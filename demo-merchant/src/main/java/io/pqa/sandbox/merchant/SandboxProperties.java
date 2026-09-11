@@ -13,6 +13,7 @@ public class SandboxProperties {
     private String cardWebhookSecret = "whsec_pqa_card_test";
     private String cryptoWebhookSecret = "whsec_pqa_crypto_test";
     private String cardTestNumber = "4242424242424242";
+    private long reconciliationIntervalSeconds = 300;
 
     public String getStripeBaseUrl() {
         return stripeBaseUrl;
@@ -84,5 +85,13 @@ public class SandboxProperties {
 
     public void setCardTestNumber(String cardTestNumber) {
         this.cardTestNumber = cardTestNumber;
+    }
+
+    public long getReconciliationIntervalSeconds() {
+        return reconciliationIntervalSeconds;
+    }
+
+    public void setReconciliationIntervalSeconds(long reconciliationIntervalSeconds) {
+        this.reconciliationIntervalSeconds = reconciliationIntervalSeconds;
     }
 }

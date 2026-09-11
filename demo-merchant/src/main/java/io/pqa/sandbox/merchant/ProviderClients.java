@@ -9,7 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 
 @Component
-public class ProviderClients {
+public class ProviderClients implements ProviderStatusLookup {
     private static final String PAYPAL_TOKEN = "A21AA_TEST_ACCESS_TOKEN";
     private final SandboxProperties props;
 
@@ -18,6 +18,10 @@ public class ProviderClients {
     }
 
     public String createStripePaymentIntent(Order order) {
+        return createStripePaymentIntent(order, true);
+    }
+
+    public String createStripePaymentIntent(Order order, boolean confirm) {
         RestClient client = RestClient.builder().baseUrl(props.getStripeBaseUrl()).build();
         Map<?, ?> resp = client.post().uri("/v1/payment_intents")
                 .header("Content-Type", "application/json")
@@ -25,10 +29,53 @@ public class ProviderClients {
                         "amount", order.amountCents,
                         "currency", order.currency,
                         "merchant_order_id", order.merchantOrderId,
-                        "confirm", true))
+                        "confirm", confirm))
                 .retrieve()
                 .body(Map.class);
         return String.valueOf(resp.get("id"));
+    }
+
+    public String confirmStripeIntent(Order order) {
+        RestClient client = RestClient.builder().baseUrl(props.getStripeBaseUrl()).build();
+        Map<?, ?> resp = client.post().uri("/v1/payment_intents/{id}/confirm", order.externalId)
+                .retrieve()
+                .body(Map.class);
+        return String.valueOf(resp.get("status"));
+    }
+
+    public String fetchStripeIntentStatus(Order order) {
+        RestClient client = RestClient.builder().baseUrl(props.getStripeBaseUrl()).build();
+        Map<?, ?> resp = client.get().uri("/v1/payment_intents/{id}", order.externalId)
+                .retrieve()
+                .body(Map.class);
+        return String.valueOf(resp.get("status"));
+    }
+
+    public String fetchPayPalOrderStatus(Order order) {
+        RestClient client = RestClient.builder().baseUrl(props.getPaypalBaseUrl()).build();
+        Map<?, ?> resp = client.get().uri("/v2/checkout/orders/{id}", order.externalId)
+                .header("Authorization", "Bearer " + PAYPAL_TOKEN)
+                .retrieve()
+                .body(Map.class);
+        return String.valueOf(resp.get("status"));
+    }
+
+    public String fetchCardChargeStatus(Order order) {
+        RestClient client = RestClient.builder().baseUrl(props.getCardBaseUrl()).build();
+        Map<?, ?> resp = client.get().uri("/v1/charges/{id}", order.externalId)
+                .retrieve()
+                .body(Map.class);
+        return String.valueOf(resp.get("status"));
+    }
+
+    @Override
+    public String providerStatus(Order order) {
+        return switch (order.provider) {
+            case "stripe" -> fetchStripeIntentStatus(order);
+            case "paypal" -> fetchPayPalOrderStatus(order);
+            case "card" -> fetchCardChargeStatus(order);
+            default -> null;
+        };
     }
 
     public String createPayPalOrder(Order order) {

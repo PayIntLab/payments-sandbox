@@ -88,9 +88,52 @@ A new provider is an independent module under `emulators/` plus one adapter in `
 
 Existing emulators do not depend on each other, so one provider can be added or changed without touching the others.
 
+## M3: reconciliation drill (silently dropped webhook)
+
+![Reconciliation drill](docs/reconciliation-drill.gif)
+
+A provider can confirm a payment while its webhook never arrives: the money moved, the order did not. The drill reproduces that on purpose:
+
+1. The merchant creates a Stripe order and the emulator drops `payment_intent.succeeded` for it.
+2. The provider intent is `succeeded` while the merchant order stays `PENDING` with no `paidSource`.
+3. The sandbox clock advances five minutes, so the scheduled reconciliation window is visible in seconds instead of minutes.
+4. The reconciliation task pulls the payment intent from the provider, sees `succeeded`, and recovers the order: `status=PAID`, `paidSource=reconciliation`.
+
+Run it:
+
+```bash
+./scripts/reconciliation-drill.sh
+```
+
+The script prints a six-step timeline and, after every step, the provider and merchant log lines produced by that step:
+
+1. build and start: service startup logs
+2. customer starts a payment: payment intent created, order created
+3. provider confirms, webhook dropped: intent confirmed, DROP scenario active, merchant waiting for a webhook
+4. order stuck: check line shows zero webhook deliveries while the provider says `succeeded`
+5. five minutes later: sandbox clock advanced
+6. reconciliation recovers the order: recovered order and scan summary
+
+The output is written to `target/reconciliation-drill/drill.log`. The rendered recording is in [docs/reconciliation-drill.gif](docs/reconciliation-drill.gif): drill steps on the left, backend logs on the right, and a dashed separator with a short pause at the start of each step. A still frame is in [docs/reconciliation-drill.png](docs/reconciliation-drill.png), and an asciinema recording in [docs/reconciliation-drill.cast](docs/reconciliation-drill.cast).
+
+Design notes:
+
+- Reconciliation is pull-based and idempotent. A second scan does not touch a recovered order; tests cover the double-recovery case.
+- Provider status is the source of truth: `succeeded` (Stripe), `COMPLETED` (PayPal), `CAPTURED` (card).
+- Crypto deposits are skipped by the reconciliation lookup because the merchant stores the deposit address, not a queryable deposit id. That gap is deliberate and a good exercise for a later milestone.
+
+Drill endpoints used by the script (not part of a real integration):
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /orders/{id}/confirm-payment` | confirm a Stripe intent created with `confirm=false` |
+| `POST /dev/clock/advance` | advance the sandbox clock so a five minute window passes in seconds |
+| `GET /reconciliation/report` | scans, pending orders checked, orders recovered |
+| `POST /reconciliation/run` | run a scan immediately instead of waiting for the schedule |
+
 ## Roadmap
 
-- M3: reconciliation drill. The emulator drops a webhook silently and the merchant scheduled reconciliation finds and recovers the order
+- M3: reconciliation drill — done. See `scripts/reconciliation-drill.sh` and `docs/reconciliation-drill.gif`
 - M4: containerized deployment with Dockerfiles, a parity matrix against real sandbox behavior, and a CI smoke test for the full demo
 
 ## License

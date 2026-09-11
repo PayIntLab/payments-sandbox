@@ -1,6 +1,8 @@
 package io.pqa.sandbox.merchant;
 
 import io.pqa.sandbox.merchant.model.Order;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -9,6 +11,7 @@ import java.util.Map;
 
 @Service
 public class OrderService {
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
     private final OrderStore store;
     private final ProviderClients clients;
     private final SandboxProperties props;
@@ -20,6 +23,11 @@ public class OrderService {
     }
 
     public Order create(String provider, long amountCents, String currency, String cardNumber) {
+        return create(provider, amountCents, currency, cardNumber, true);
+    }
+
+    public Order create(String provider, long amountCents, String currency, String cardNumber,
+                        boolean confirm) {
         String p = provider == null ? "" : provider.toLowerCase();
         if (!p.equals("stripe") && !p.equals("paypal")
                 && !p.equals("card") && !p.equals("crypto")) {
@@ -29,8 +37,11 @@ public class OrderService {
         Order order = store.create(p, amountCents, currency);
         switch (p) {
             case "stripe" -> {
-                order.externalId = clients.createStripePaymentIntent(order);
-                order.providerStatus = "processing";
+                order.externalId = clients.createStripePaymentIntent(order, false);
+                order.providerStatus = "requires_confirmation";
+                if (confirm) {
+                    order.providerStatus = clients.confirmStripeIntent(order);
+                }
             }
             case "paypal" -> {
                 order.externalId = clients.createPayPalOrder(order);
@@ -50,6 +61,22 @@ public class OrderService {
             default -> {
             }
         }
+        log.info("[merchant] created order {} (provider={}, amount={} {}, external={}, confirm={})",
+                order.id, order.provider, order.amountCents, order.currency, order.externalId, confirm);
+        return order;
+    }
+
+    public Order confirmPayment(String orderId) {
+        Order order = get(orderId);
+        if (!"stripe".equals(order.provider)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "confirm-payment is only available for stripe orders");
+        }
+        if ("PENDING".equals(order.status)) {
+            order.providerStatus = clients.confirmStripeIntent(order);
+        }
+        log.info("[merchant] order {} confirm requested; provider status={}, waiting for webhook",
+                order.id, order.providerStatus);
         return order;
     }
 

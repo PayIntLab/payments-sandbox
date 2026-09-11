@@ -10,6 +10,10 @@ sandbox:
   crypto-base-url: http://localhost:8104
   card-webhook-secret: whsec_pqa_card_test
   crypto-webhook-secret: whsec_pqa_crypto_test
+  reconciliation-interval-seconds: 300
+
+  reconciliation:
+    tick-ms: 1000
 
 logging:
   level:
