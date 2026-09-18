@@ -107,7 +107,7 @@ Run it:
 ./scripts/reconciliation-drill.sh
 ```
 
-Write-up with the full story: [A silently dropped webhook, recovered five minutes later](https://dev.to/pqalabs/a-silently-dropped-webhook-recovered-five-minutes-later-a-reconciliation-drill-you-can-run-locally-k1f).
+Write-up with the full story: [A silently dropped webhook, recovered five minutes later](https://dev.to/payintlab/a-silently-dropped-webhook-recovered-five-minutes-later-a-reconciliation-drill-you-can-run-locally-k1f).
 
 The script prints a six-step timeline and, after every step, the provider and merchant log lines produced by that step:
 
