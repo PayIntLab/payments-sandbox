@@ -1,4 +1,6 @@
-# pqa-payments-sandbox
+# payments-sandbox
+
+Part of [PayIntLab](https://github.com/PayIntLab).
 
 Local payment integration environment that emulates multiple payment providers. It is meant for developing and verifying merchant-side payment integrations before switching to real sandbox accounts.
 
